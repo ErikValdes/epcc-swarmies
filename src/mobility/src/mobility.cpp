@@ -788,10 +788,12 @@ void mapAverage() {
 
     }
     
-    std::string stringify(float value)
-    {
+
+}
+
+std::string stringify(float value)
+{
         std::ostringstream oss;
         oss << value;
         return oss.str();
-    }
 }
