@@ -122,7 +122,6 @@ ros::Publisher fingerAnglePublish;
 ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
-ros::Publisher thetaPublish;
 
 // Subscribers
 ros::Subscriber joySubscriber;
@@ -176,7 +175,6 @@ int main(int argc, char **argv) {
 
     //select initial search position 50 cm from center (0,0)
     goalLocation.x = 0.5 * cos(goalLocation.theta+M_PI);
-    thetaPublish.publish(currentLocation.theta);
     goalLocation.y = 0.5 * sin(goalLocation.theta+M_PI);
 
     centerLocation.x = 0;
@@ -219,8 +217,6 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
-    
-    thetaPublish = mNH.advertise<std_msgs::double>((publishedName + "/thetaMESSAGE"), 1, true);
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
@@ -274,8 +270,7 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                 centerLocationMap.x = currentLocationAverage.x;
                 centerLocationMap.y = currentLocationAverage.y;
                 centerLocationMap.theta = currentLocationAverage.theta;
-                
-                
+
                 // initialization has run
                 init = true;
             } else {
@@ -629,14 +624,12 @@ void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
         // obstacle on right side
         if (message->data == 1) {
             // select new heading 0.2 radians to the left
-            thetaPublish.publish(currentLocation.theta);
             goalLocation.theta = currentLocation.theta + 0.6;
         }
 
         // obstacle in front or on left side
         else if (message->data == 2) {
             // select new heading 0.2 radians to the right
-            thetaPublish.publish(currentLocation.theta);
             goalLocation.theta = currentLocation.theta + 0.6;
         }
 
@@ -668,7 +661,6 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& message) {
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
     currentLocation.theta = yaw;
-    thetaPublish.publish(currentLocation.theta);
 }
 
 void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
@@ -682,7 +674,6 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
     currentLocationMap.theta = yaw;
-    thetaPublish.publish(currentLocation.theta);
 }
 
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message) {
@@ -746,7 +737,6 @@ void mapAverage() {
     currentLocationAverage.x = x;
     currentLocationAverage.y = y;
     currentLocationAverage.theta = theta;
-    thetaPublish.publish(currentLocation.theta);
 
 
     // only run below code if a centerLocation has been set by initilization
@@ -759,7 +749,6 @@ void mapAverage() {
 
         mapPose.header.frame_id = publishedName + "/map";
         mapPose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0, 0, centerLocationMap.theta);
-        thetaPublish.publish(currentLocation.theta);
         mapPose.pose.position.x = centerLocationMap.x;
         mapPose.pose.position.y = centerLocationMap.y;
         geometry_msgs::PoseStamped odomPose;
@@ -787,4 +776,3 @@ void mapAverage() {
 
     }
 }
-
