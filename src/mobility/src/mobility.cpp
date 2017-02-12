@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
     
-    thetaPublish = mNH.advertise<std_msgs::Float64>((publishedName + "/thetaMESSAGE"), 1, true);
+    thetaPublish = mNH.advertise<std_msgs::double>((publishedName + "/thetaMESSAGE"), 1, true);
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
