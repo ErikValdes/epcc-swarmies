@@ -123,6 +123,8 @@ ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
 
+ros::Publisher thetaPublish;
+
 // Subscribers
 ros::Subscriber joySubscriber;
 ros::Subscriber modeSubscriber;
@@ -217,7 +219,10 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
+    
+    thetaPublish = mNH.advertise<std_msgs::String>("chatter", 1000);
 
+    
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
     targetDetectedTimer = mNH.createTimer(ros::Duration(0), targetDetectedReset, true);
@@ -359,10 +364,12 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             //if error in heading is greater than 0.4 radians
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > rotateOnlyAngleTolerance) {
                 stateMachineState = STATE_MACHINE_ROTATE;
+                thetaPublish.publish(stringify(currentLocation.theta));
             }
             //If goal has not yet been reached drive and maintane heading
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
                 stateMachineState = STATE_MACHINE_SKID_STEER;
+                thetaPublish.publish(stringify(currentLocation.theta));
             }
             //Otherwise, drop off target and select new random uniform heading
             //If no targets have been detected, assign a new goal
@@ -385,6 +392,7 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             // If angle > 0.4 radians rotate but dont drive forward.
             if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > rotateOnlyAngleTolerance) {
                 // rotate but dont drive  0.05 is to prevent turning in reverse
+                thetaPublish.publish(stringify(currentLocation.theta));
                 sendDriveCommand(0.05, errorYaw);
                 break;
             } else {
@@ -402,16 +410,18 @@ void mobilityStateMachine(const ros::TimerEvent&) {
 
             // calculate the distance between current and desired heading in radians
             float errorYaw = angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta);
-
+            thetaPublish.publish(stringify(currentLocation.theta));
             // goal not yet reached drive while maintaining proper heading.
             if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
                 // drive and turn simultaniously
                 sendDriveCommand(searchVelocity, errorYaw/2);
+                thetaPublish.publish(stringify(currentLocation.theta));
             }
             // goal is reached but desired heading is still wrong turn only
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > 0.1) {
                  // rotate but dont drive
                 sendDriveCommand(0.0, errorYaw);
+                thetaPublish.publish(stringify(currentLocation.theta));
             }
             else {
                 // stop
@@ -625,12 +635,14 @@ void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
         if (message->data == 1) {
             // select new heading 0.2 radians to the left
             goalLocation.theta = currentLocation.theta + 0.6;
+            thetaPublish.publish(stringify(currentLocation.theta));
         }
 
         // obstacle in front or on left side
         else if (message->data == 2) {
             // select new heading 0.2 radians to the right
             goalLocation.theta = currentLocation.theta + 0.6;
+            thetaPublish.publish(stringify(currentLocation.theta));
         }
 
         // continues an interrupted search
@@ -774,5 +786,12 @@ void mapAverage() {
         centerLocation.y = odomPose.pose.position.y;
 
 
+    }
+    
+    std::string stringify(float value)
+    {
+        std::ostringstream oss;
+        oss << value;
+        return oss.str();
     }
 }
