@@ -31,6 +31,17 @@
 
 using namespace std;
 
+std_msgs::String stringify(float value)
+{
+        std_msgs::String msg;
+  
+        std::stringstream ss;
+        ss << value;
+        msg.data = ss.str();
+
+        return msg;
+}
+
 // Random number generator
 random_numbers::RandomNumberGenerator* rng;
 
@@ -157,6 +168,7 @@ void sigintEventHandler(int signal);
 //Callback handlers
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message);
 void modeHandler(const std_msgs::UInt8::ConstPtr& message);
+//string stringify(float);
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& tagInfo);
 void obstacleHandler(const std_msgs::UInt8::ConstPtr& message);
 void odometryHandler(const nav_msgs::Odometry::ConstPtr& message);
@@ -245,7 +257,6 @@ int main(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
-
 
 // This is the top-most logic control block organised as a state machine.
 // This function calls the dropOff, pickUp, and search controllers.
@@ -793,9 +804,4 @@ void mapAverage() {
 
 }
 
-std::string stringify(float value)
-{
-        std::ostringstream oss;
-        oss << value;
-        return oss.str();
-}
+
