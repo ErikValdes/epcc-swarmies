@@ -97,7 +97,7 @@ geometry_msgs::Pose2D mapLocation[mapHistorySize];
 
 bool avoidingObstacle = false;
 
-float searchVelocity = 5.0; // meters/second
+float searchVelocity = 0.2; // meters/second
 
 std_msgs::String msg;
 
@@ -187,7 +187,8 @@ int main(int argc, char **argv) {
         mapLocation[i].y = 0;
         mapLocation[i].theta = 0;
     }
-
+    /*
+//COMMENT FROM HERE - ALAN - TESTING CHANGING THE HOST NAME
     if (argc >= 2) {
         publishedName = argv[1];
         cout << "Welcome to the world of tomorrow " << publishedName
@@ -196,7 +197,9 @@ int main(int argc, char **argv) {
         publishedName = hostname;
         cout << "No Name Selected. Default is: " << publishedName << endl;
     }
-
+//COMMENT FROM HERE - ALAN - TESTING CHANGING THE HOST NAME
+    */
+    publishedName = "achilles"; //ALAN - SET NAME TO A SPECIFIC SWARMIE
     // NoSignalHandler so we can catch SIGINT ourselves and shutdown the node
     ros::init(argc, argv, (publishedName + "_MOBILITY"), ros::init_options::NoSigintHandler);
     ros::NodeHandle mNH;
@@ -303,8 +306,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             stateMachineMsg.data = "TRANSFORMING";
 
             // If returning with a target
-//HOLD From Here - Alan
-            /*
             if (targetCollected && !avoidingObstacle) {
                 // calculate the euclidean distance between
                 // centerLocation and currentLocation
@@ -357,10 +358,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                     break;
                 }
             }
-            */
-//HOLD To Here - Alan
-//HOLD From Here - Alan
-            /*            
             //If angle between current and goal is significant
             //if error in heading is greater than 0.4 radians
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > rotateOnlyAngleTolerance) {
@@ -377,9 +374,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             }
 
             //Purposefully fall through to next case without breaking
-            */
-//HOLD To Here - Alan
-            stateMachineState = STATE_MACHINE_SKID_STEER; //Alan - Modified for STATE_MACHINE to always be SKID_STEER
         }
 
         // Calculate angle between currentLocation.theta and goalLocation.theta
@@ -417,8 +411,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                 // drive and turn simultaniously
                 sendDriveCommand(searchVelocity, errorYaw/2);
             }
-            /*
-//HOLD From Here - Alan
             // goal is reached but desired heading is still wrong turn only
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > 0.1) {
                  // rotate but dont drive
@@ -434,9 +426,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             }
 
             break;
-            */
-//HOLD to Here - Alan
-            //sendDriveCommand(searchVelocity, errorYaw/2);
         }
 
         case STATE_MACHINE_PICKUP: {
