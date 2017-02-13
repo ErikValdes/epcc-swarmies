@@ -123,6 +123,7 @@ ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
 
+// My own custom publisher
 ros::Publisher thetaPublish;
 
 // Subscribers
@@ -220,6 +221,7 @@ int main(int argc, char **argv) {
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
     
+    //Making thetaPublish brodcast strings under chatter
     thetaPublish = mNH.advertise<std_msgs::String>("chatter", 1000);
 
     
