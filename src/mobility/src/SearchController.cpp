@@ -1,5 +1,8 @@
 #include "SearchController.h"
 
+ros::Subscriber joySubscriber;
+
+
 SearchController::SearchController() {
   rng = new random_numbers::RandomNumberGenerator();
 }
@@ -7,7 +10,7 @@ SearchController::SearchController() {
 /**
  * This code implements a basic random walk search.
  */
-geometry_msgs::Pose2D SearchController::search(geometry_msgs::Pose2D currentLocation) {
+geometry_msgs::Pose2D SearchController::search(geometry_msgs::Pose2D currentLocation, std_msgs::String helpLocation, std_msgs::Bool needsHelp) {
   geometry_msgs::Pose2D goalLocation;
 
   //select new heading from Gaussian distribution around current heading
