@@ -146,7 +146,8 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
-
+ros::Subscriber thetaSubscriber; //Subscriber for theta of backup
+ros::Subscriber backUpSub; //Subscriber to backup request
 
 // Timers
 ros::Timer stateMachineTimer;
