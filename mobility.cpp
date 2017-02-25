@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
-    tagPublisher = mNH.advertise<geometry_msgs::PoseStamped>((publishedName + "/tagz"), 10, true);
+    tagPublisher = mNH.advertise<geometry_msgs::PoseArray>((publishedName + "/tagz"), 10, true);
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
@@ -530,6 +530,11 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
 
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
+        if(message->detections.size() > 1){
+            geometry_msgs::PoseArray pa;
+            pa.poses[0] = message->detections[0].pose.pose;
+            tagPublisher.publish(pa);
+        }
         float cameraOffsetCorrection = 0.020; //meters;
 
         centerSeen = false;
@@ -541,7 +546,6 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
         for (int i = 0; i < message->detections.size(); i++) {
             if (message->detections[i].id == 256) {
                 geometry_msgs::PoseStamped cenPose = message->detections[i].pose;
-                tagPublisher.publish(cenPose);
 
                 // checks if tag is on the right or left side of the image
                 if (cenPose.pose.position.x + cameraOffsetCorrection > 0) {
