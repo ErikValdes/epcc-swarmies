@@ -158,7 +158,8 @@ ros::Subscriber tagDetectorSubscriber;
 
 // Timers
 //ros::Timer stateMachineTimer;
-ros::Timer myTimer;
+ros::Timer myTimer;//epcc 
+
 ros::Timer publish_status_timer;
 ros::Timer targetDetectedTimer;
 
@@ -185,7 +186,7 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
 
 //void mobilityStateMachine(const ros::TimerEvent&);
-void mobilityMove(const ros::TimerEvent&);
+void mobilityMove(const ros::TimerEvent&);//epcc
 
 
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
@@ -273,7 +274,7 @@ int main(int argc, char **argv) {
 
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);					// Timer PUBLISHER 
-    //stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);									// Timer PUBLISHER time between mobility call
+     //stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);									// Timer PUBLISHER time between mobility call
     targetDetectedTimer = mNH.createTimer(ros::Duration(0), targetDetectedReset, true);
 
     myTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityMove);
@@ -299,6 +300,8 @@ int main(int argc, char **argv) {
 
     return EXIT_SUCCESS;
 }
+
+
 
 void mobilityMove(const ros::TimerEvent&){
 
@@ -379,8 +382,6 @@ void mobilityMove(const ros::TimerEvent&){
 
 }
 }
-
-
 // 
 
 
