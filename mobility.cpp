@@ -14,6 +14,7 @@
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
 #include <apriltags_ros/AprilTagDetectionArray.h>
@@ -218,7 +219,7 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
-    tagPublisher = mNH.advertise<geometry_msgs::PoseArray>((publishedName + "/tagz"), 10, true);
+    tagPublisher = mNH.advertise<geometry_msgs::PoseArray>("/tagz", 10, true);
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
