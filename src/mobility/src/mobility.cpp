@@ -7,8 +7,8 @@
 #include <tf/transform_listener.h>
 
 // ROS messages
+#include <geometry_msgs/PoseArray.h>
 #include <std_msgs/Float32.h>
-#include <std_msgs/Bool.h>
 #include <std_msgs/Int16.h>
 #include <std_msgs/UInt8.h>
 #include <std_msgs/String.h>
@@ -31,17 +31,6 @@
 
 
 using namespace std;
-
-std_msgs::String stringify(float value)
-{
-        std_msgs::String msg;
-  
-        std::stringstream ss;
-        ss << value;
-        msg.data = ss.str();
-
-        return msg;
-}
 
 // Random number generator
 random_numbers::RandomNumberGenerator* rng;
@@ -134,11 +123,8 @@ ros::Publisher fingerAnglePublish;
 ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
-
-// My own custom publisher
-ros::Publisher thetaPublish;
-ros::Publisher requestingBackup;
-
+ros::Publisher tagPublisher;
+ros::Publisher arrayPub;
 // Subscribers
 ros::Subscriber joySubscriber;
 ros::Subscriber modeSubscriber;
@@ -146,8 +132,7 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
-ros::Subscriber thetaSubscriber; //Subscriber for theta of backup
-ros::Subscriber backUpSub; //Subscriber to backup request
+
 
 // Timers
 ros::Timer stateMachineTimer;
@@ -161,7 +146,7 @@ time_t timerStartTime;
 // average its location.
 unsigned int startDelayInSeconds = 1;
 float timerTimeElapsed = 0;
-
+geometry_msgs::PoseArray arrayX;
 //Transforms
 tf::TransformListener *tfListener;
 
@@ -171,7 +156,6 @@ void sigintEventHandler(int signal);
 //Callback handlers
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message);
 void modeHandler(const std_msgs::UInt8::ConstPtr& message);
-//string stringify(float);
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& tagInfo);
 void obstacleHandler(const std_msgs::UInt8::ConstPtr& message);
 void odometryHandler(const nav_msgs::Odometry::ConstPtr& message);
@@ -235,12 +219,9 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
-    
-    //Making thetaPublish brodcast strings under chatter
+    tagPublisher = mNH.advertise<geometry_msgs::PoseStamped>((publishedName + "/tagz"), 10, true);
+    arrayPub = mNH.advertise<geometry_msgs::PoseArray>((publishedName + "/array"), 10, true);
 
-    thetaPublish = mNH.advertise<std_msgs::String>((publishedName + "/theta" ), 10, true);
-    requestingBackup = mNH.advertise<std_msgs::Bool>((publishedName + "/requestingBackup" ), 10, true);
-    
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
     targetDetectedTimer = mNH.createTimer(ros::Duration(0), targetDetectedReset, true);
@@ -257,10 +238,43 @@ int main(int argc, char **argv) {
 
     timerStartTime = time(0);
 
+    string link = "/base_link";
+   
+    arrayX.header.stamp = ros::Time::now();
+    arrayX.header.frame_id = link;
+
+
     ros::spin();
 
     return EXIT_SUCCESS;
 }
+
+void addLocation(double x, double y, double z, double angle)
+{
+    geometry_msgs::Pose block_pose;
+    block_pose.position.x = x;
+    block_pose.position.y = y;
+    block_pose.position.z = z;
+
+
+    // block_pose.orientation.x = ::atof(publishedName);
+    // block_pose.orientation.y = ros::Time::now();
+    // block_pose.orientation.z = 4.0;
+    // block_pose.orientation.w = angle;
+
+    //ROS_INFO_STREAM("Added block: \n" << block_pose );
+    arrayX.poses.push_back(block_pose);
+}
+
+geometry_msgs:: getLocation(){
+
+    if ( arrayX.poses.size() > 0 )
+        return arrayX.poses[poses.size() - 1 ];
+
+}
+
+
+
 
 // This is the top-most logic control block organised as a state machine.
 // This function calls the dropOff, pickUp, and search controllers.
@@ -381,17 +395,15 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             //if error in heading is greater than 0.4 radians
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > rotateOnlyAngleTolerance) {
                 stateMachineState = STATE_MACHINE_ROTATE;
-                
             }
             //If goal has not yet been reached drive and maintane heading
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
                 stateMachineState = STATE_MACHINE_SKID_STEER;
-                 
             }
             //Otherwise, drop off target and select new random uniform heading
             //If no targets have been detected, assign a new goal
             else if (!targetDetected && timerTimeElapsed > returnToSearchDelay) {
-                goalLocation = searchController.search(currentLocation, );
+                goalLocation = searchController.search(currentLocation);
             }
 
             //Purposefully fall through to next case without breaking
@@ -409,7 +421,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             // If angle > 0.4 radians rotate but dont drive forward.
             if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > rotateOnlyAngleTolerance) {
                 // rotate but dont drive  0.05 is to prevent turning in reverse
-                 
                 sendDriveCommand(0.05, errorYaw);
                 break;
             } else {
@@ -427,18 +438,16 @@ void mobilityStateMachine(const ros::TimerEvent&) {
 
             // calculate the distance between current and desired heading in radians
             float errorYaw = angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta);
-             
+
             // goal not yet reached drive while maintaining proper heading.
             if (fabs(angles::shortest_angular_distance(currentLocation.theta, atan2(goalLocation.y - currentLocation.y, goalLocation.x - currentLocation.x))) < M_PI_2) {
                 // drive and turn simultaniously
                 sendDriveCommand(searchVelocity, errorYaw/2);
-                 
             }
             // goal is reached but desired heading is still wrong turn only
             else if (fabs(angles::shortest_angular_distance(currentLocation.theta, goalLocation.theta)) > 0.1) {
                  // rotate but dont drive
                 sendDriveCommand(0.0, errorYaw);
-                 
             }
             else {
                 // stop
@@ -453,6 +462,9 @@ void mobilityStateMachine(const ros::TimerEvent&) {
         }
 
         case STATE_MACHINE_PICKUP: {
+
+            addLocation(currentLocation.x, currentLocation.y, currentLocation.x, currentLocation.theta);
+
             stateMachineMsg.data = "PICKUP";
 
             PickUpResult result;
@@ -566,6 +578,7 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
         for (int i = 0; i < message->detections.size(); i++) {
             if (message->detections[i].id == 256) {
                 geometry_msgs::PoseStamped cenPose = message->detections[i].pose;
+                tagPublisher.publish(cenPose);
 
                 // checks if tag is on the right or left side of the image
                 if (cenPose.pose.position.x + cameraOffsetCorrection > 0) {
@@ -652,14 +665,12 @@ void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
         if (message->data == 1) {
             // select new heading 0.2 radians to the left
             goalLocation.theta = currentLocation.theta + 0.6;
-             
         }
 
         // obstacle in front or on left side
         else if (message->data == 2) {
             // select new heading 0.2 radians to the right
             goalLocation.theta = currentLocation.theta + 0.6;
-             
         }
 
         // continues an interrupted search
@@ -804,6 +815,5 @@ void mapAverage() {
 
 
     }
-    
-
 }
+
