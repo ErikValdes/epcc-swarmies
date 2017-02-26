@@ -525,14 +525,15 @@ void sendDriveCommand(double linearVel, double angularError)
  *************************/
 
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& message) {
+    geometry_msgs::PoseArray pa;
+    infoLogPublisher.publish(pa.poses.max_size()+"/n"+pa.poses.size());
 
     // If in manual mode do not try to automatically pick up the target
     if (currentMode == 1 || currentMode == 0) return;
 
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
-        if(message->detections.size() > 1){
-            geometry_msgs::PoseArray pa;
+        if(message->detections.size() > 0){
             pa.poses[0] = message->detections[0].pose.pose;
             tagPublisher.publish(pa);
         }
