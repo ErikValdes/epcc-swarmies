@@ -58,6 +58,8 @@ geometry_msgs::Pose2D centerLocation;
 geometry_msgs::Pose2D centerLocationMap;
 geometry_msgs::Pose2D centerLocationOdom;
 
+geometry_msgs::PoseArray pa;
+
 int currentMode = 0;
 float mobilityLoopTimeStep = 0.1; // time between the mobility loop calls
 float status_publish_interval = 1;
@@ -132,6 +134,7 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
+ros::Subscriber tagSubscriber;
 
 
 // Timers
@@ -163,6 +166,7 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetDetectedReset(const ros::TimerEvent& event);
+void tagHandler(geometry_msgs::PoseArray poseArray);
 
 int main(int argc, char **argv) {
 
@@ -212,6 +216,7 @@ int main(int argc, char **argv) {
     obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
     odometrySubscriber = mNH.subscribe((publishedName + "/odom/filtered"), 10, odometryHandler);
     mapSubscriber = mNH.subscribe((publishedName + "/odom/ekf"), 10, mapHandler);
+    tagSubscriber = mNH.subscribe("/tagz", 10, tagHandler);
 
     status_publisher = mNH.advertise<std_msgs::String>((publishedName + "/status"), 1, true);
     stateMachinePublish = mNH.advertise<std_msgs::String>((publishedName + "/state_machine"), 1, true);
@@ -524,19 +529,25 @@ void sendDriveCommand(double linearVel, double angularError)
  * ROS CALLBACK HANDLERS *
  *************************/
 
+void tagHandler(geometry_msgs::PoseArray pArray){
+    pa = pArray;
+    infoLogPublisher.publish(publishedName+" success!");
+}
+
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& message) {
-    geometry_msgs::PoseArray pa;
-    infoLogPublisher.publish(pa.poses.max_size()+"/n"+pa.poses.size());
+    //infoLogPublisher.publish(pa.poses.max_size()+"/n"+pa.poses.size());
 
     // If in manual mode do not try to automatically pick up the target
     if (currentMode == 1 || currentMode == 0) return;
 
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
+
         if(message->detections.size() > 0){
-            pa.poses[0] = message->detections[0].pose.pose;
+            pa.poses.push_back(message->detections[0]);
             tagPublisher.publish(pa);
         }
+
         float cameraOffsetCorrection = 0.020; //meters;
 
         centerSeen = false;
