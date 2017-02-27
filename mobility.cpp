@@ -145,7 +145,7 @@ ros::Timer targetDetectedTimer;
 // records time for delays in sequanced actions, 1 second resolution.
 time_t timerStartTime;
 
-// An initial delay to allow the rover to gather enough position data to 
+// An initial delay to allow the rover to gather enough position data to
 // average its location.
 unsigned int startDelayInSeconds = 1;
 float timerTimeElapsed = 0;
@@ -166,7 +166,7 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetDetectedReset(const ros::TimerEvent& event);
-void tagHandler(geometry_msgs::PoseArray poseArray);
+void tagHandler(const geometry_msgs::PoseArray& poseArray);
 
 int main(int argc, char **argv) {
 
@@ -216,7 +216,7 @@ int main(int argc, char **argv) {
     obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
     odometrySubscriber = mNH.subscribe((publishedName + "/odom/filtered"), 10, odometryHandler);
     mapSubscriber = mNH.subscribe((publishedName + "/odom/ekf"), 10, mapHandler);
-    tagSubscriber = mNH.subscribe(("/tagz"), 10, tagHandler);
+    tagSubscriber = mNH.subscribe("/tagz", 10, tagHandler);
 
     status_publisher = mNH.advertise<std_msgs::String>((publishedName + "/status"), 1, true);
     stateMachinePublish = mNH.advertise<std_msgs::String>((publishedName + "/state_machine"), 1, true);
@@ -528,14 +528,19 @@ void sendDriveCommand(double linearVel, double angularError)
 /*************************
  * ROS CALLBACK HANDLERS *
  *************************/
-
-void tagHandler(geometry_msgs::PoseArray pArray){
+//JamesBranch
+void tagHandler(const geometry_msgs::PoseArray& pArray){
+  // if a location has been added or deleted, update
+  if(pa.poses.size() != pArray.poses.size()){
     pa = pArray;
-    infoLogPublisher.publish(publishedName+" success!");
+  }
 }
 
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& message) {
-    //infoLogPublisher.publish(pa.poses.max_size()+"/n"+pa.poses.size());
+  if(message->detections.size() > 9){
+    msg.data = "!LARGE CLUSTER!";
+    infoLogPublisher.publish(msg);
+  }
 
     // If in manual mode do not try to automatically pick up the target
     if (currentMode == 1 || currentMode == 0) return;
@@ -543,9 +548,14 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
 
-        if(message->detections.size() > 0){
-            pa.poses.push_back(message->detections[0]);
-            tagPublisher.publish(pa);
+        //JamesBranch
+        if(message->detections.size() > 1){
+          geometry_msgs::Pose p = message->detections[0].pose.pose;
+          p.orientation.x = 0.0;
+          pa.poses.push_back(p);
+          tagPublisher.publish(pa);
+          msg.data = publishedName + " found a cluster!";
+          infoLogPublisher.publish(msg);
         }
 
         float cameraOffsetCorrection = 0.020; //meters;
@@ -751,7 +761,7 @@ void mapAverage() {
     // find the average
     x = x/mapHistorySize;
     y = y/mapHistorySize;
-    
+
     // Get theta rotation by converting quaternion orientation to pitch/roll/yaw
     theta = theta/100;
     currentLocationAverage.x = x;
@@ -796,4 +806,3 @@ void mapAverage() {
 
     }
 }
-
