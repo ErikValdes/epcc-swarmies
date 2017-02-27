@@ -47,6 +47,9 @@ void raiseWrist();  // Return wrist back to 0 degrees
 void lowerWrist();  // Lower wrist to 50 degrees
 void mapAverage();  // constantly averages last 100 positions from map
 
+//epcc sergio mydrive360
+void drive360(double num, double num2);
+
 // Numeric Variables for rover positioning
 geometry_msgs::Pose2D currentLocation;
 geometry_msgs::Pose2D currentLocationMap;
@@ -97,7 +100,7 @@ geometry_msgs::Pose2D mapLocation[mapHistorySize];
 
 bool avoidingObstacle = false;
 
-float searchVelocity = 0.2; // meters/second
+float searchVelocity = 0.6; // meters/second epcc chanhe .2 to .6
 
 std_msgs::String msg;
 
@@ -115,6 +118,8 @@ char host[128];
 string publishedName;
 char prev_state_machine[128];
 
+
+
 // Publishers
 ros::Publisher stateMachinePublish;
 ros::Publisher status_publisher;
@@ -123,6 +128,9 @@ ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
 
+
+
+
 // Subscribers
 ros::Subscriber joySubscriber;
 ros::Subscriber modeSubscriber;
@@ -130,6 +138,11 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
+
+//epcc sergio map sub
+// ros::Subscriber mapSub;
+ros::Subscriber obstacleFind;
+// ros::Subscriber odomSub;
 
 
 // Timers
@@ -155,9 +168,15 @@ void sigintEventHandler(int signal);
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message);
 void modeHandler(const std_msgs::UInt8::ConstPtr& message);
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& tagInfo);
-void obstacleHandler(const std_msgs::UInt8::ConstPtr& message);
+//void obstacleHandler(const std_msgs::UInt8::ConstPtr& message);
 void odometryHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
+
+//epcc sergio map handle
+// void mapNew(const nav_msgs::Odometry::ConstPtr& msg);
+//void odomNew(const nav_msgs::Odometry::ConstPtr& msg);
+void obstacleFinder(const std_msgs::UInt8::ConstPtr& message);
+
 void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetDetectedReset(const ros::TimerEvent& event);
@@ -207,9 +226,14 @@ int main(int argc, char **argv) {
     joySubscriber = mNH.subscribe((publishedName + "/joystick"), 10, joyCmdHandler);
     modeSubscriber = mNH.subscribe((publishedName + "/mode"), 1, modeHandler);
     targetSubscriber = mNH.subscribe((publishedName + "/targets"), 10, targetHandler);
-    obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
+    //obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
     odometrySubscriber = mNH.subscribe((publishedName + "/odom/filtered"), 10, odometryHandler);
     mapSubscriber = mNH.subscribe((publishedName + "/odom/ekf"), 10, mapHandler);
+
+    //Epcc sergio create map sub
+    //mapSub = mNH.subscribe((publishedName+"/odom/ekf"),10, mapNew );
+    obstacleFind = mNH.subscribe((publishedName+"/obstacle"),5, obstacleFinder);
+    //odomSub = mNH.subscribe(("/odom/filtered"),5, odomNew);
 
     status_publisher = mNH.advertise<std_msgs::String>((publishedName + "/status"), 1, true);
     stateMachinePublish = mNH.advertise<std_msgs::String>((publishedName + "/state_machine"), 1, true);
@@ -218,9 +242,14 @@ int main(int argc, char **argv) {
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
 
+
+
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
     targetDetectedTimer = mNH.createTimer(ros::Duration(0), targetDetectedReset, true);
+
+
+
 
     tfListener = new tf::TransformListener();
     std_msgs::String msg;
@@ -517,6 +546,11 @@ void sendDriveCommand(double linearVel, double angularError)
     driveControlPublish.publish(velocity);
 }
 
+void driveBack(double num){
+    velocity.linear.x = -num*5;
+    driveControlPublish.publish(velocity);
+}
+
 /*************************
  * ROS CALLBACK HANDLERS *
  *************************/
@@ -618,37 +652,60 @@ void modeHandler(const std_msgs::UInt8::ConstPtr& message) {
     currentMode = message->data;
     sendDriveCommand(0.0, 0.0);
 }
+//msg->data > 0             goalLocation.y > 5.0 * cos(goalLocation.theta) || goalLocation.y > 5.0 * sin(goalLocation.theta+M_PI) ||
+//epcc Callback obstacle sergio
+void obstacleFinder(const std_msgs::UInt8::ConstPtr& message){
+   
+    if( message->data > 0){   
+       goalLocation.theta = currentLocation.theta + M_PI_2;
 
-void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
-    if ((!targetDetected || targetCollected) && (message->data > 0)) {
-        // obstacle on right side
-        if (message->data == 1) {
-            // select new heading 0.2 radians to the left
-            goalLocation.theta = currentLocation.theta + 0.6;
-        }
 
-        // obstacle in front or on left side
-        else if (message->data == 2) {
-            // select new heading 0.2 radians to the right
-            goalLocation.theta = currentLocation.theta + 0.6;
-        }
-
-        // continues an interrupted search
-        goalLocation = searchController.continueInterruptedSearch(currentLocation, goalLocation);
-
-        // switch to transform state to trigger collision avoidance
-        stateMachineState = STATE_MACHINE_ROTATE;
-
-        avoidingObstacle = true;
     }
+     goalLocation = searchController.continueInterruptedSearch(currentLocation, goalLocation);
+     stateMachineState = STATE_MACHINE_ROTATE;
+     avoidingObstacle = true;
 
-    // the front ultrasond is blocked very closely. 0.14m currently
+       // the front ultrasond is blocked very closely. 0.14m currently
     if (message->data == 4) {
         blockBlock = true;
     } else {
         blockBlock = false;
     }
+
+
 }
+
+
+//void obstacleHandler(const std_msgs::UInt8::ConstPtr& message) {
+    // if ((!targetDetected || targetCollected) && (message->data > 0)) {
+    //     // obstacle on right side
+    //     if (message->data == 1) {
+    //         // select new heading 0.2 radians to the left
+    //         goalLocation.theta = currentLocation.theta + 0.6;
+    //     }
+
+    //     // obstacle in front or on left side
+    //     else if (message->data == 2) {
+    //         // select new heading 0.2 radians to the right
+    //         goalLocation.theta = currentLocation.theta + 0.6;
+    //     }
+
+    //     // continues an interrupted search
+    //     goalLocation = searchController.continueInterruptedSearch(currentLocation, goalLocation);
+
+    //     // switch to transform state to trigger collision avoidance
+    //     stateMachineState = STATE_MACHINE_ROTATE;
+
+    //     avoidingObstacle = true;
+    // }
+
+    // // the front ultrasond is blocked very closely. 0.14m currently
+    // if (message->data == 4) {
+    //     blockBlock = true;
+    // } else {
+    //     blockBlock = false;
+    // }
+//}
 
 void odometryHandler(const nav_msgs::Odometry::ConstPtr& message) {
     //Get (x,y) location directly from pose
@@ -663,6 +720,14 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& message) {
     currentLocation.theta = yaw;
 }
 
+//epcc odom sergio
+void odomNew(const nav_msgs::Odometry::ConstPtr& msg){
+//get x y locations form pose
+    currentLocation.x = msg->pose.pose.position.x;
+    currentLocation.y = msg->pose.pose.position.y;
+
+}
+
 void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
     //Get (x,y) location directly from pose
     currentLocationMap.x = message->pose.pose.position.x;
@@ -675,6 +740,16 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
     m.getRPY(roll, pitch, yaw);
     currentLocationMap.theta = yaw;
 }
+
+//epcc sergio map sub handler
+void mapNew(const nav_msgs::Odometry::ConstPtr& msg){
+    //Get (x,y) location direct from pose
+    currentLocationMap.x = msg->pose.pose.position.x;
+    currentLocationMap.y = msg->pose.pose.position.y;
+
+}
+
+
 
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message) {
     if (currentMode == 0 || currentMode == 1) {
