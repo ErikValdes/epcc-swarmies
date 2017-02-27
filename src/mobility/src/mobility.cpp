@@ -28,7 +28,6 @@
 #include <ros/ros.h>
 #include <signal.h>
 
-
 using namespace std;
 
 // Random number generator
@@ -97,7 +96,7 @@ geometry_msgs::Pose2D mapLocation[mapHistorySize];
 
 bool avoidingObstacle = false;
 
-float searchVelocity = 0.2; // meters/second
+float searchVelocity = 0.8; // meters/second TO CHANGE VELOCITY OF ROVERS 0.2 default
 
 std_msgs::String msg;
 
@@ -122,6 +121,7 @@ ros::Publisher fingerAnglePublish;
 ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
+ros::Publisher infoTextTester; //Creating a new publisher
 
 // My own custom publisher
 ros::Publisher thetaPublish;
@@ -133,7 +133,7 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
-
+ros::Subscriber tagDetectorSubscriber;
 
 // Timers
 ros::Timer stateMachineTimer;
@@ -143,7 +143,7 @@ ros::Timer targetDetectedTimer;
 // records time for delays in sequanced actions, 1 second resolution.
 time_t timerStartTime;
 
-// An initial delay to allow the rover to gather enough position data to 
+// An initial delay to allow the rover to gather enough position data to
 // average its location.
 unsigned int startDelayInSeconds = 1;
 float timerTimeElapsed = 0;
@@ -164,6 +164,7 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetDetectedReset(const ros::TimerEvent& event);
+void tagDetector(const std_msgs::UInt8::ConstPtr& message);
 
 int main(int argc, char **argv) {
 
@@ -209,13 +210,14 @@ int main(int argc, char **argv) {
 
     joySubscriber = mNH.subscribe((publishedName + "/joystick"), 10, joyCmdHandler);
     modeSubscriber = mNH.subscribe((publishedName + "/mode"), 1, modeHandler);
-    targetSubscriber = mNH.subscribe((publishedName + "/targets"), 10, targetHandler);
+      targetSubscriber = mNH.subscribe((publishedName + "/targets"), 10, targetHandler);
     obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
     odometrySubscriber = mNH.subscribe((publishedName + "/odom/filtered"), 10, odometryHandler);
     mapSubscriber = mNH.subscribe((publishedName + "/odom/ekf"), 10, mapHandler);
-
+    tagDetectorSubscriber = mNH.subscribe((publishedName + "/tagDetector"), 5, tagDetector);
     status_publisher = mNH.advertise<std_msgs::String>((publishedName + "/status"), 1, true);
     stateMachinePublish = mNH.advertise<std_msgs::String>((publishedName + "/state_machine"), 1, true);
+    infoTextTester = mNH.advertise<std_msgs:: String>((publishedName + "/infoTextTester"), 1, true); //Initialization
     fingerAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/fingerAngle/cmd"), 1, true);
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
@@ -224,7 +226,7 @@ int main(int argc, char **argv) {
     //Making thetaPublish brodcast strings under chatter
     thetaPublish = mNH.advertise<std_msgs::String>("chatter", 1000);
 
-    
+
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
     targetDetectedTimer = mNH.createTimer(ros::Duration(0), targetDetectedReset, true);
@@ -233,6 +235,11 @@ int main(int argc, char **argv) {
     std_msgs::String msg;
     msg.data = "Log Started";
     infoLogPublisher.publish(msg);
+
+    //Testing a new publisher
+    std_msgs::String infoTextTesterMsg;
+    infoTextTesterMsg.data ="Testing a new publisher"; //How to read the publish data in ROS
+    infoTextTester.publish(infoTextTesterMsg);
 
     stringstream ss;
     ss << "Rover start delay set to " << startDelayInSeconds << " seconds";
@@ -247,9 +254,8 @@ int main(int argc, char **argv) {
 }
 
 
-// This is the top-most logic control block organised as a state machine.
-// This function calls the dropOff, pickUp, and search controllers.
-// This block passes the goal location to the proportional-integral-derivative
+// This is the top-movoid tagDetector();
+// the goal location to the proportional-integral-derivative
 // controllers in the abridge package.
 void mobilityStateMachine(const ros::TimerEvent&) {
 
@@ -263,7 +269,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
 
     // Robot is in automode
     if (currentMode == 2 || currentMode == 3) {
-
 
         // time since timerStartTime was set to current time
         timerTimeElapsed = time(0) - timerStartTime;
@@ -283,7 +288,6 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             } else {
                 return;
             }
-
         }
 
         // If no collected or detected blocks set fingers
@@ -353,14 +357,7 @@ void mobilityStateMachine(const ros::TimerEvent&) {
                     stateMachineState = STATE_MACHINE_ROTATE;
                     timerStartTime = time(0);
                 }
-                // we are in precision/timed driving
-                else {
-                    goalLocation = currentLocation;
-                    sendDriveCommand(result.cmdVel,result.angleError);
-                    stateMachineState = STATE_MACHINE_TRANSFORM;
-
-                    break;
-                }
+                // we are in precision/timed driving            tagDetector( );
             }
             //If angle between current and goal is significant
             //if error in heading is greater than 0.4 radians
@@ -696,13 +693,11 @@ void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message) {
     }
 }
 
-
 void publishStatusTimerEventHandler(const ros::TimerEvent&) {
     std_msgs::String msg;
     msg.data = "online";
     status_publisher.publish(msg);
 }
-
 
 void targetDetectedReset(const ros::TimerEvent& event) {
     targetDetected = false;
@@ -720,6 +715,14 @@ void targetDetectedReset(const ros::TimerEvent& event) {
 void sigintEventHandler(int sig) {
     // All the default sigint handler does is call shutdown()
     ros::shutdown();
+}
+
+void tagDetector(const std_msgs::UInt8::ConstPtr& message) {
+  std_msgs::String msg;
+  if(targetCollected) {
+  msg.data = "Tag was picked up by " + publishedName;
+  status_publisher.publish(msg);
+  }
 }
 
 void mapAverage() {
@@ -745,13 +748,12 @@ void mapAverage() {
     // find the average
     x = x/mapHistorySize;
     y = y/mapHistorySize;
-    
+
     // Get theta rotation by converting quaternion orientation to pitch/roll/yaw
     theta = theta/100;
     currentLocationAverage.x = x;
     currentLocationAverage.y = y;
     currentLocationAverage.theta = theta;
-
 
     // only run below code if a centerLocation has been set by initilization
     if (init) {
@@ -793,9 +795,11 @@ void mapAverage() {
 
 }
 
+
 std::string stringify(float value)
 {
         std::ostringstream oss;
         oss << value;
         return oss.str();
 }
+
