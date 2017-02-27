@@ -14,6 +14,7 @@
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/Range.h>
 #include <geometry_msgs/Pose2D.h>
+#include <geometry_msgs/PoseArray.h>
 #include <geometry_msgs/Twist.h>
 #include <nav_msgs/Odometry.h>
 #include <apriltags_ros/AprilTagDetectionArray.h>
@@ -56,6 +57,8 @@ geometry_msgs::Pose2D goalLocation;
 geometry_msgs::Pose2D centerLocation;
 geometry_msgs::Pose2D centerLocationMap;
 geometry_msgs::Pose2D centerLocationOdom;
+
+geometry_msgs::PoseArray pa;
 
 int currentMode = 0;
 float mobilityLoopTimeStep = 0.1; // time between the mobility loop calls
@@ -122,6 +125,7 @@ ros::Publisher fingerAnglePublish;
 ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
+ros::Publisher tagPublisher;
 
 // Subscribers
 ros::Subscriber joySubscriber;
@@ -130,6 +134,7 @@ ros::Subscriber targetSubscriber;
 ros::Subscriber obstacleSubscriber;
 ros::Subscriber odometrySubscriber;
 ros::Subscriber mapSubscriber;
+ros::Subscriber tagSubscriber;
 
 
 // Timers
@@ -140,7 +145,7 @@ ros::Timer targetDetectedTimer;
 // records time for delays in sequanced actions, 1 second resolution.
 time_t timerStartTime;
 
-// An initial delay to allow the rover to gather enough position data to 
+// An initial delay to allow the rover to gather enough position data to
 // average its location.
 unsigned int startDelayInSeconds = 1;
 float timerTimeElapsed = 0;
@@ -161,6 +166,7 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message);
 void mobilityStateMachine(const ros::TimerEvent&);
 void publishStatusTimerEventHandler(const ros::TimerEvent& event);
 void targetDetectedReset(const ros::TimerEvent& event);
+void tagHandler(const geometry_msgs::PoseArray& poseArray);
 
 int main(int argc, char **argv) {
 
@@ -210,6 +216,7 @@ int main(int argc, char **argv) {
     obstacleSubscriber = mNH.subscribe((publishedName + "/obstacle"), 10, obstacleHandler);
     odometrySubscriber = mNH.subscribe((publishedName + "/odom/filtered"), 10, odometryHandler);
     mapSubscriber = mNH.subscribe((publishedName + "/odom/ekf"), 10, mapHandler);
+    tagSubscriber = mNH.subscribe("/tagz", 10, tagHandler);
 
     status_publisher = mNH.advertise<std_msgs::String>((publishedName + "/status"), 1, true);
     stateMachinePublish = mNH.advertise<std_msgs::String>((publishedName + "/state_machine"), 1, true);
@@ -217,6 +224,7 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
+    tagPublisher = mNH.advertise<geometry_msgs::PoseArray>(("/tagz"), 10, true);
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
@@ -520,14 +528,36 @@ void sendDriveCommand(double linearVel, double angularError)
 /*************************
  * ROS CALLBACK HANDLERS *
  *************************/
+//epcc James decides whether or not to update
+void tagHandler(const geometry_msgs::PoseArray& pArray){
+  // if a location has been added or deleted, update
+  if(pa.poses.size() != pArray.poses.size()){
+    pa = pArray;
+  }
+}
 
 void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& message) {
+  if(message->detections.size() > 9){
+    msg.data = "!LARGE CLUSTER!";
+    infoLogPublisher.publish(msg);
+  }
 
     // If in manual mode do not try to automatically pick up the target
     if (currentMode == 1 || currentMode == 0) return;
 
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
+
+        //epcc James publishes updated array after finding mult blocks
+        if(message->detections.size() > 1){
+          geometry_msgs::Pose p = message->detections[0].pose.pose;
+          p.orientation.x = 0.0;
+          pa.poses.push_back(p);
+          tagPublisher.publish(pa);
+          msg.data = publishedName + " found a cluster!";
+          infoLogPublisher.publish(msg);
+        }
+
         float cameraOffsetCorrection = 0.020; //meters;
 
         centerSeen = false;
@@ -731,7 +761,7 @@ void mapAverage() {
     // find the average
     x = x/mapHistorySize;
     y = y/mapHistorySize;
-    
+
     // Get theta rotation by converting quaternion orientation to pitch/roll/yaw
     theta = theta/100;
     currentLocationAverage.x = x;
@@ -776,4 +806,3 @@ void mapAverage() {
 
     }
 }
-
