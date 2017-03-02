@@ -58,7 +58,7 @@ geometry_msgs::Pose2D centerLocation;
 geometry_msgs::Pose2D centerLocationMap;
 geometry_msgs::Pose2D centerLocationOdom;
 
-geometry_msgs::PoseArray pa;
+geometry_msgs::PoseArray localPoseArray;
 
 int currentMode = 0;
 float mobilityLoopTimeStep = 0.1; // time between the mobility loop calls
@@ -375,7 +375,16 @@ void mobilityStateMachine(const ros::TimerEvent&) {
             //Otherwise, drop off target and select new random uniform heading
             //If no targets have been detected, assign a new goal
             else if (!targetDetected && timerTimeElapsed > returnToSearchDelay) {
-                goalLocation = searchController.search(currentLocation);
+              //epcc James if a juicy location exists, set destination
+              if(localPoseArray.poses.size() != 0){
+                //instead of converting to Pose2D, use set values
+                //goalLocation.x = localPoseArray.poses[0].position.point.x;
+                //goalLocation.y = localPoseArray.poses[0].position.point.y;
+                //goalLocation.theta = localPoseArray.poses[0].orientation.x;
+                //this assumes we are using orientation.x field to store theta
+                ;
+              }
+              goalLocation = searchController.search(currentLocation);
             }
 
             //Purposefully fall through to next case without breaking
@@ -529,10 +538,10 @@ void sendDriveCommand(double linearVel, double angularError)
  * ROS CALLBACK HANDLERS *
  *************************/
 //epcc James decides whether or not to update
-void tagHandler(const geometry_msgs::PoseArray& pArray){
+void tagHandler(const geometry_msgs::PoseArray& globalPoseArray){
   // if a location has been added or deleted, update
-  if(pa.poses.size() != pArray.poses.size()){
-    pa = pArray;
+  if(localPoseArray.poses.size() != globalPoseArray.poses.size()){
+    localPoseArray = globalPoseArray;
   }
 }
 
@@ -548,12 +557,12 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
     // if a target is detected and we are looking for center tags
     if (message->detections.size() > 0 && !reachedCollectionPoint) {
 
-        //epcc James publishes updated array after finding mult blocks
+        //epcc James publishes updated array after finding multiple blocks
         if(message->detections.size() > 1){
           geometry_msgs::Pose p = message->detections[0].pose.pose;
           p.orientation.x = 0.0;
-          pa.poses.push_back(p);
-          tagPublisher.publish(pa);
+          localPoseArray.poses.push_back(p);
+          tagPublisher.publish(localPoseArray);
           msg.data = publishedName + " found a cluster!";
           infoLogPublisher.publish(msg);
         }
