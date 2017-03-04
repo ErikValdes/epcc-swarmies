@@ -25,7 +25,6 @@
 
 // To handle shutdown signals so the node quits
 // properly in response to "rosnode kill"
-#include <ros/ros.h>
 #include <signal.h>
 
 
@@ -97,7 +96,7 @@ geometry_msgs::Pose2D mapLocation[mapHistorySize];
 
 bool avoidingObstacle = false;
 
-float searchVelocity = 0.2; // meters/second
+float searchVelocity = 20.00; // meters/second
 
 std_msgs::String msg;
 
@@ -122,6 +121,8 @@ ros::Publisher fingerAnglePublish;
 ros::Publisher wristAnglePublish;
 ros::Publisher infoLogPublisher;
 ros::Publisher driveControlPublish;
+ros::Publisher clPitchPublish; //EPCC__ALAN__Publish for pitch
+ros::Publisher clRollPublish; //EPCC__ALAN__Publish for pitch
 
 // Subscribers
 ros::Subscriber joySubscriber;
@@ -187,8 +188,7 @@ int main(int argc, char **argv) {
         mapLocation[i].y = 0;
         mapLocation[i].theta = 0;
     }
-    /*
-//COMMENT FROM HERE - ALAN - TESTING CHANGING THE HOST NAME
+
     if (argc >= 2) {
         publishedName = argv[1];
         cout << "Welcome to the world of tomorrow " << publishedName
@@ -197,9 +197,7 @@ int main(int argc, char **argv) {
         publishedName = hostname;
         cout << "No Name Selected. Default is: " << publishedName << endl;
     }
-//COMMENT FROM HERE - ALAN - TESTING CHANGING THE HOST NAME
-    */
-    publishedName = "achilles"; //ALAN - SET NAME TO A SPECIFIC SWARMIE
+
     // NoSignalHandler so we can catch SIGINT ourselves and shutdown the node
     ros::init(argc, argv, (publishedName + "_MOBILITY"), ros::init_options::NoSigintHandler);
     ros::NodeHandle mNH;
@@ -220,6 +218,8 @@ int main(int argc, char **argv) {
     wristAnglePublish = mNH.advertise<std_msgs::Float32>((publishedName + "/wristAngle/cmd"), 1, true);
     infoLogPublisher = mNH.advertise<std_msgs::String>("/infoLog", 1, true);
     driveControlPublish = mNH.advertise<geometry_msgs::Twist>((publishedName + "/driveControl"), 10);
+    clPitchPublish = mNH.advertise<std_msgs::Float32>((publishedName + "/Pitch"), 1, true); //EPCC__ALAN__Publish for pitch
+    clRollPublish = mNH.advertise<std_msgs::Float32>((publishedName + "/Roll"), 1, true); //EPCC__ALAN__Publish for roll
 
     publish_status_timer = mNH.createTimer(ros::Duration(status_publish_interval), publishStatusTimerEventHandler);
     stateMachineTimer = mNH.createTimer(ros::Duration(mobilityLoopTimeStep), mobilityStateMachine);
@@ -602,7 +602,7 @@ void targetHandler(const apriltags_ros::AprilTagDetectionArray::ConstPtr& messag
         stateMachineState = STATE_MACHINE_PICKUP;
         result = pickUpController.selectTarget(message);
 
-        std_msgs::Float32 angle;
+        std_msgs::Float32 angle; //EPCC
 
         if (result.fingerAngle != -1) {
             angle.data = result.fingerAngle;
@@ -663,6 +663,14 @@ void odometryHandler(const nav_msgs::Odometry::ConstPtr& message) {
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
     currentLocation.theta = yaw;
+    
+    std_msgs::Float32 clPitch; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION PITCH
+    std_msgs::Float32 clRoll; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION ROLL
+    clPitch.data = pitch; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION PITCH
+    clRoll.data = roll; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION ROLL
+    clPitchPublish.publish(clPitch); //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION PITCH
+    clRollPublish.publish(clRoll); //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATION ROLL
+
 }
 
 void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
@@ -676,6 +684,8 @@ void mapHandler(const nav_msgs::Odometry::ConstPtr& message) {
     double roll, pitch, yaw;
     m.getRPY(roll, pitch, yaw);
     currentLocationMap.theta = yaw;
+    double clmPitch = pitch; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATIONMAP PITCH
+    double clmRoll = roll; //EPCC__ALAN__VARIABLES DECLARED FOR CURRENTLOCATIONMAP ROLL
 }
 
 void joyCmdHandler(const sensor_msgs::Joy::ConstPtr& message) {
