@@ -19,7 +19,7 @@ PickUpController::PickUpController() {
 
 PickUpResult PickUpController::pickUpSelectedTarget(bool blockBlock) {
     //threshold distance to be from the target block before attempting pickup
-    float targetDist = 0.25; //meters
+    float targetDist = 0.18; //meters
 
 
     /*PickUpResult result;
@@ -69,7 +69,7 @@ PickUpResult PickUpController::pickUpSelectedTarget(bool blockBlock) {
     else if (!lockTarget) //if a target hasn't been locked lock it and enter a counting state while slowly driving forward.
     {
         lockTarget = true;
-        result.cmdVel = 0.18;
+        result.cmdVel = 0.30;
         result.angleError = 0.0;
         timeOut = true;
     }
@@ -87,7 +87,7 @@ PickUpResult PickUpController::pickUpSelectedTarget(bool blockBlock) {
         return result;
     }
 
-    if (Td > 3.8 && timeOut) //if enough time has passed enter a recovery state to re-attempt a pickup
+    if (Td > 3.0 && timeOut) //if enough time has passed enter a recovery state to re-attempt a pickup
     {
         if (blockBlock) //if the ultrasound is blocked at less than .12 meters a block has been picked up no new pickup required
         {
@@ -104,12 +104,12 @@ PickUpResult PickUpController::pickUpSelectedTarget(bool blockBlock) {
         }
     }
 
-    if (Td > 5 && timeOut) //if no targets are found after too long a period go back to search pattern
+    if (Td > 4 && timeOut) //if no targets are found after too long a period go back to search pattern
     {
         result.giveUp = true;
         lockTarget = false;
         timeOut = false;
-        result.cmdVel = 0.0;
+        result.cmdVel = 0.9;
         result.angleError = 0.0;
     }
 
